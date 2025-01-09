@@ -17,11 +17,15 @@ Please provide answers to these questions using markdown notation and place them
 
 
 3. Please provide a link to the repository you are using for this class.
+
 https://github.com/ZaafirUlHasan/Systems-Programming
 
 4. Briefly describe what you want to get out of this class.
+
 Gain a better understanding of how to work in a linux environment
+
 Learn how software and hardware interact through the operating system
 
 5. Briefly describe any concerns you might be having with being successful in this class (if any).
+
 no concerns. maybe overall courseload when combined with other classes but nothing specific to this class.

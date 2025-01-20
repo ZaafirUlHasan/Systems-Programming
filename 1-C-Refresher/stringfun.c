@@ -266,7 +266,7 @@ int main(int argc, char *argv[]){
 //TODO:  #7  Notice all of the helper functions provided in the 
 //          starter take both the buffer as well as the length.  Why 
 //          do you think providing both the pointer and the length
-//          is a good practice, after all we know from main() that 
+//          is a good practice, after all we know from main() that  
 //          the buff variable will have exactly 50 bytes?
 //  
 //          This avoids hard-coding any constants. While the buffer size may be

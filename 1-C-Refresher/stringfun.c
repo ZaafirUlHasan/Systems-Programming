@@ -259,7 +259,7 @@ int main(int argc, char *argv[]){
 
     //TODO:  #6 Dont forget to free your buffer before exiting
     print_buff(buff,BUFFER_SZ);
-    free(buff);
+    free(buff); 
     exit(0);
 }
 

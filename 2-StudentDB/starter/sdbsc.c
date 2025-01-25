@@ -294,6 +294,7 @@ int print_db(int fd){
 
     student_t* student = malloc(STUDENT_RECORD_SIZE);
 
+
     while (!end_reached)
     {
         int read_return = read(fd, student, STUDENT_RECORD_SIZE);

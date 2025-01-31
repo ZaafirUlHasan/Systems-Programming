@@ -76,7 +76,7 @@ Please answer the following questions and submit in your repo for the second ass
     ```
     In this implementation the storage for the student record is allocated on the heap using `malloc()` and passed back to the caller when the function returns. What do you think about this alternative implementation of `get_student(...)`?  Address in your answer why it work work, but also think about any potential problems it could cause.  
     
-    > **ANSWER:** Since the student_t structure here is allocated on the heap using malloc(), its memory persists after the function returns. This avoids the problem of returning a pointer to a local variable on the stack. However, the caller is now responsible for freeing the allocated memory using free(). If the caller forgets to do so, it results in a memory leak.
+    > **ANSWER:** Since the student_t structure here is allocated on the heap using malloc(), its memory persists after the function returns. This avoids the problem of returning a pointer to a local variable on the stack. However, the caller of the function is now responsible for freeing the allocated memory using free(). If the caller forgets to do so, it results in a memory leak.
 
 
 

@@ -111,7 +111,7 @@ Please answer the following questions and submit in your repo for the second ass
 
     -   Why did the total storage used on the disk remain unchanged when we added the student with ID=1, ID=3, and ID=63, but increased from 4K to 8K when we added the student with ID=64? 
 
-        > The disk usage remains 4K for IDs 1, 3, and 63 because the file system uses sparse file representation, and no additional blocks are allocated for holes. Adding ID=64 increases the logical size past 4K, requiring a second disk block, increasing the physical storage to 8K.
+        > The du command reports the physical disk usage, which reflects how much actual storage is allocated to the file on disk. The disk usage remains 4K for IDs 1, 3, and 63 because of sparse file representation. These holes do not consume physical storage, so the disk usage remains at 4 KB, corresponding to the size of one block (the minimum allocatable unit on disk). Adding ID=64 increases the logical size past 4K, requiring a second disk block, increasing the physical storage to 8K.
 
     - Now lets add one more student with a large student ID number  and see what happens:
 

@@ -124,4 +124,4 @@ Please answer the following questions and submit in your repo for the second ass
         ```
         We see from above adding a student with a very large student ID (ID=99999) increased the file size to 6400000 as shown by `ls` but the raw storage only increased to 12K as reported by `du`.  Can provide some insight into why this happened?
 
-        > **ANSWER:**  The logical size (reported by ls) becomes 6,400,000 bytes due to the large offset created by ID=99999. However, the file remains sparse, and only the actual written data (plus minimal metadata) consumes physical storage, resulting in 12K reported by du.
+        > **ANSWER:**  The logical size (reported by ls) becomes 6,400,000 bytes due to the large offset created by ID=99999. However, the file remains sparse, meaning most of this 6,400,000 is "holes" and only the actual written data consumes physical storage, resulting in 12K reported by du.

@@ -107,13 +107,7 @@ Please answer the following questions and submit in your repo for the second ass
 
     - Please explain why the file size reported by the `ls` command was 128 bytes after adding student with ID=1, 256 after adding student with ID=3, and 4160 after adding the student with ID=64? 
 
-        > **ANSWER:** The file size reflects the logical size based on the largest offset written:
-        
-        ID=1: The first record adds 64 bytes, and alignment/padding brings it to 128 bytes.
-        
-        ID=3: The offset includes gaps (sparse regions) between IDs 1 and 3, increasing the logical size to 256 bytes.
-        
-        ID=64: Writing to ID=64 extends the logical file size to 64 × 64 = 4160 bytes.
+        > **ANSWER:** ls here is reporting how much data we would have to read if we started reading the file at the first byte and read all the way to the end. When we enter record with id=1, the offset is calculated as 1 * STUDENT_RECORD_SIZE = 64. So, when we write the 64 byte student here, the apparent size goes up to 128 even with no record yet for ID=0. Basically, the bytes 0-64 are currently a "hole"/sparse region. The same thing happens when we add ID=3. The bytes 128-192 are a "hole" reserved for ID=2 and then ID=3 is written from bytes 192-256. And then again it happens when we add ID=64 but this time, all the bytes from 256-4096 are "holes" and reserved for ID=4 - ID=63.
 
     -   Why did the total storage used on the disk remain unchanged when we added the student with ID=1, ID=3, and ID=63, but increased from 4K to 8K when we added the student with ID=64? 
 

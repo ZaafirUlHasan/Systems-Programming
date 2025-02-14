@@ -49,7 +49,7 @@ void print_drexel_dragon();
  */
 int main()
 {
-    char *cmd_buff = malloc(SH_CMD_MAX * sizeof(char*));
+    char *cmd_buff = malloc(SH_CMD_MAX * sizeof(char));
     int rc = 0;
     command_list_t clist;
 

@@ -120,7 +120,31 @@ int boot_server(char *ifaces, int port){
     
     struct sockaddr_in addr;
 
-    // TODO set up the socket - this is very similar to the demo code
+    // TODO:DONE set up the socket - this is very similar to the demo code
+    svr_socket = socket(AF_INET, SOCK_STREAM, 0);
+    if (svr_socket < 0)
+    {
+        perror("socket creation error");
+        close(svr_socket);
+        return ERR_RDSH_COMMUNICATION;
+    }
+
+    //  when doing development you often run into issues where you hold onto
+    //  the port and then need to wait for linux to detect this issue and free
+    //  the port up.  The code above tells linux to force allowing this process
+    //  to use the specified port making your life a lot easier.
+    int enable = 1;
+    setsockopt(svr_socket, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int));
+
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(port);
+    addr.sin_addr.s_addr = inet_addr(ifaces);
+
+    if (bind(svr_socket, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
+        perror("bind error");
+        close(svr_socket);
+        return ERR_RDSH_COMMUNICATION;
+    }
 
     /*
      * Prepare for accepting connections. The backlog size is set
@@ -182,10 +206,28 @@ int process_cli_requests(int svr_socket){
     int     rc = OK;    
 
     while(1){
-        // TODO use the accept syscall to create cli_socket 
+        // TODO:DONE use the accept syscall to create cli_socket 
         // and then exec_client_requests(cli_socket)
+
+        struct sockaddr_in client_addr;
+        socklen_t client_len = sizeof(client_addr); 
+
+
+        cli_socket = accept(svr_socket,(struct sockaddr *)&client_addr, &client_len);
+        if (cli_socket < 0)
+        {
+            perror("accept error");
+            rc = ERR_RDSH_COMMUNICATION;
+            break;
+        }
+
+        if (exec_client_requests(cli_socket) < 0) // if stop server command from client
+        {
+            break;
+        } 
     }
 
+    //TODO FREE BUFFER
     stop_server(cli_socket);
     return rc;
 }
@@ -238,28 +280,119 @@ int exec_client_requests(int cli_socket) {
     int cmd_rc;
     int last_rc;
     char *io_buff;
+    int total_size = 0;
 
     io_buff = malloc(RDSH_COMM_BUFF_SZ);
     if (io_buff == NULL){
-        return ERR_RDSH_SERVER;
+        return ERR_RDSH_COMMUNICATION;
     }
 
     while(1) {
-        // TODO use recv() syscall to get input
 
-        // TODO build up a cmd_list
+        memset(io_buff, 0, RDSH_COMM_BUFF_SZ);
+        total_size = 0;
 
-        // TODO rsh_execute_pipeline to run your cmd_list
+        while (total_size < RDSH_COMM_BUFF_SZ - 1) { 
+            // TODO:DONE use recv() syscall to get input
+            io_size = recv(cli_socket, io_buff + total_size, RDSH_COMM_BUFF_SZ - 1 - total_size, 0);
+            
+            if (io_size <= 0) {  
+                free(io_buff);
+                close(cli_socket);
+                return ERR_RDSH_COMMUNICATION;
+            }
+
+            total_size += io_size;
+
+            // Check if the received data contains a null terminator ('\0')
+            if (io_buff[total_size - 1] == '\0') {
+                break;  // End of command received
+            }
+        }
+
+        // At this point, io_buff contains the full command (null-terminated)
+        printf("Received command: %s\n", io_buff); // Debugging purpose
+
+        // if (strcmp(io_buff, EXIT_CMD) == 0)
+        // {
+        //     send_message_string(cli_socket, RCMD_MSG_CLIENT_EXITED);
+        //     free(io_buff);
+        //     close(cli_socket);
+        //     return OK;
+        // }
+
+        // if (strcmp(io_buff, "stop-server") == 0)
+        // {
+        //     send_message_string(cli_socket, RCMD_MSG_SVR_STOP_REQ);
+        //     free(io_buff);
+        //     close(cli_socket);
+        //     return OK_EXIT;
+        // }
+
+        // TODO:DONE build up a cmd_list
+        memset(&cmd_list, 0, sizeof(command_list_t));
+         if (rsh_build_cmd_list(io_buff, &cmd_list) != OK)
+         {
+             printf(CMD_ERR_RDSH_EXEC);
+             memset(io_buff, 0, RDSH_COMM_BUFF_SZ);
+             snprintf(io_buff, RDSH_COMM_BUFF_SZ, CMD_ERR_PIPE_LIMIT, CMD_MAX);
+             send_message_string(cli_socket, io_buff);
+             io_size = 0;
+             continue;
+         }
+ 
+         if (cmd_list.num == 0)
+         {
+             printf(CMD_WARN_NO_CMD);
+             continue;
+         }
+ 
+         // Handle single command execution
+         if (cmd_list.num == 1)
+         {
+             Built_In_Cmds cmd_type = rsh_built_in_cmd(&cmd_list.commands[0]);
+             if (cmd_type == BI_CMD_EXIT)
+             {
+                send_message_string(cli_socket, RCMD_MSG_CLIENT_EXITED);
+                close(cli_socket);
+                last_rc = 0;
+                break;
+             }else if (cmd_type == BI_CMD_STOP_SVR)
+             {
+                send_message_string(cli_socket, RCMD_MSG_SVR_STOP_REQ);
+                free(io_buff); close(cli_socket);
+                last_rc = 0;
+                printf(RCMD_MSG_SVR_STOP_REQ);
+                return OK_EXIT;
+             }else if (cmd_type == BI_NOT_BI)
+             {
+                last_rc = rsh_exec_cmd(cli_socket, &cmd_list.commands[0]); // Executing a single, non-built-in command
+                 if (last_rc < 0)
+                 {
+                    send_message_string(cli_socket, CMD_ERR_RDSH_EXEC);
+                    free(io_buff); close(cli_socket);
+                    return ERR_RDSH_CMD_EXEC;
+                 }
+             }
+         }
+         else
+         {
+            // TODO:DONE rsh_execute_pipeline to run your cmd_list
+            last_rc = rsh_execute_pipeline(cli_socket, &cmd_list);
+        }
+        send_message_eof(cli_socket);
 
         // TODO send appropriate respones with send_message_string
         // - error constants for failures
         // - buffer contents from execute commands
         //  - etc.
+        // send_message_string(cli_socket, RCMD_MSG_SVR_RC_CMD);
 
         // TODO send_message_eof when done
     }
 
-    return WARN_RDSH_NOT_IMPL;
+    free(io_buff);
+    return OK;
 }
 
 /*
@@ -308,8 +441,16 @@ int send_message_eof(int cli_socket){
  */
 int send_message_string(int cli_socket, char *buff){
     //TODO implement writing to cli_socket with send()
-    return WARN_RDSH_NOT_IMPL;
+    int msg_len = strlen(buff);
+    int sent_len = send(cli_socket, buff, msg_len, 0);
+    
+    if (sent_len != msg_len) {
+        return ERR_RDSH_COMMUNICATION;
+    }
+    
+    return send_message_eof(cli_socket);
 }
+
 
 
 /*
@@ -357,6 +498,7 @@ int rsh_execute_pipeline(int cli_sock, command_list_t *clist) {
     Built_In_Cmds bi_cmd;
     int exit_code;
 
+
     // Create all necessary pipes
     for (int i = 0; i < clist->num - 1; i++) {
         if (pipe(pipes[i]) == -1) {
@@ -366,9 +508,41 @@ int rsh_execute_pipeline(int cli_sock, command_list_t *clist) {
     }
 
     for (int i = 0; i < clist->num; i++) {
-        // TODO this is basically the same as the piped fork/exec assignment, except for where you connect the begin and end of the pipeline (hint: cli_sock)
+        // TODO:DONE this is basically the same as the piped fork/exec assignment, except for where you connect the begin and end of the pipeline (hint: cli_sock)
+        pids[i] = fork();
+        if (pids[i] < 0) {
+            perror("fork failed");
+            return ERR_RDSH_CMD_EXEC;
+        }
 
-        // TODO HINT you can dup2(cli_sock with STDIN_FILENO, STDOUT_FILENO, etc.
+        if (pids[i] == 0) { // Child process
+            // Redirect input
+            if (i == 0) {
+                dup2(cli_sock, STDIN_FILENO);  // First command reads from client
+            } else {
+                dup2(pipes[i - 1][0], STDIN_FILENO);  // Read from previous pipe
+            }
+
+            // Redirect output
+            dup2(cli_sock, STDERR_FILENO); // Redirect stderr for all commands
+            if (i == clist->num - 1) {
+                // TODO:DONE HINT you can dup2(cli_sock with STDIN_FILENO, STDOUT_FILENO, etc.
+                dup2(cli_sock, STDOUT_FILENO); // Last command writes to client
+            } else {
+                dup2(pipes[i][1], STDOUT_FILENO); // Write to next pipe if not last command
+            }
+
+            // Close all pipes in child
+            for (int j = 0; j < clist->num - 1; j++) {
+                close(pipes[j][0]);
+                close(pipes[j][1]);
+            }
+
+            // Execute command
+            execvp(clist->commands[i].argv[0], clist->commands[i].argv);
+            perror("execvp failed");
+            exit(EXIT_FAILURE);
+        }
 
     }
 
@@ -378,7 +552,6 @@ int rsh_execute_pipeline(int cli_sock, command_list_t *clist) {
         close(pipes[i][0]);
         close(pipes[i][1]);
     }
-
     // Wait for all children
     for (int i = 0; i < clist->num; i++) {
         waitpid(pids[i], &pids_st[i], 0);
@@ -497,5 +670,112 @@ Built_In_Cmds rsh_built_in_cmd(cmd_buff_t *cmd)
         return BI_EXECUTED;
     default:
         return BI_NOT_BI;
+    }
+}
+
+
+
+
+int rsh_build_cmd_list(char *cmd_line, command_list_t *clist) {
+    if ((cmd_line == NULL) || (strlen(cmd_line) == 0)) {
+        return WARN_NO_CMDS;
+    }
+
+    memset(clist, 0, sizeof(command_list_t));
+    
+    char *saveptr_pipe;
+    char *token = strtok_r(cmd_line, PIPE_STRING, &saveptr_pipe);
+    int cmd_count = 0;
+
+    while (token != NULL) {
+        while (*token == SPACE_CHAR) // Remove leading spaces
+            token++;
+
+        char *end = token + strlen(token) - 1;
+        while ((end > token) && (*end == SPACE_CHAR)) // Remove trailing spaces
+            *end-- = '\0';
+
+        if (cmd_count >= CMD_MAX) {
+            return ERR_TOO_MANY_COMMANDS;
+        }
+
+        clist->commands[cmd_count]._cmd_buffer = strdup(token);
+        if (clist->commands[cmd_count]._cmd_buffer == NULL) {
+            return ERR_CMD_OR_ARGS_TOO_BIG;
+        }
+
+        char *cmd_str = clist->commands[cmd_count]._cmd_buffer;
+        bool in_quotes = false;
+        char *arg_start = NULL;
+        int arg_count = 0;
+
+        for (char *ptr = cmd_str; *ptr; ptr++) {
+            if (*ptr == '"') {
+                in_quotes = !in_quotes;
+                memmove(ptr, ptr + 1, strlen(ptr)); // Shift the rest left, removing the quote
+                ptr--; // Adjust pointer back
+                continue;
+            }
+
+            if ((*ptr == SPACE_CHAR) && !in_quotes) {
+                *ptr = '\0'; // Null-terminate argument
+                if (arg_start) {
+                    clist->commands[cmd_count].argv[arg_count++] = arg_start;
+                    arg_start = NULL;
+                }
+            } else if (!arg_start) {
+                arg_start = ptr;
+            }
+        }
+
+        // add the last argument
+        if (arg_start) {
+            clist->commands[cmd_count].argv[arg_count++] = arg_start;
+        }
+
+        clist->commands[cmd_count].argv[arg_count] = NULL; // Null-terminate argv
+        clist->commands[cmd_count].argc = arg_count;
+        
+        cmd_count++;
+        token = strtok_r(NULL, PIPE_STRING, &saveptr_pipe);
+    }
+
+    clist->num = cmd_count;
+    return OK;
+}
+
+
+
+
+// function for executing a single, non-built-in command
+int rsh_exec_cmd(int cli_sock, cmd_buff_t *cmd) {
+    if (cmd == NULL || cmd->argc == 0 || cmd->argv[0] == NULL) {
+        return -1; // Invalid command
+    }
+
+    
+
+    pid_t pid = fork();
+    if (pid < 0) {
+        perror("fork failed");
+        return -1;
+    }
+
+    if (pid == 0) { // Child process
+        dup2(cli_sock, STDOUT_FILENO); // Command writes to client
+        dup2(cli_sock, STDERR_FILENO); // Redirect stderr as well
+        execvp(cmd->argv[0], cmd->argv);
+        perror("execvp failed"); 
+        exit(EXIT_FAILURE);
+    } 
+
+    // Parent process
+    int status;
+    waitpid(pid, &status, 0);
+
+    if (WIFEXITED(status)) {
+        return WEXITSTATUS(status); // Return child's exit status
+    } else {
+        return -1; // Abnormal termination
     }
 }
